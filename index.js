@@ -6,6 +6,7 @@ const {
 } = require("@whiskeysockets/baileys");
 const express = require("express");
 const qrcode = require("qrcode-terminal");
+const QRCode = require("qrcode");
 const fs = require("fs");
 const path = require("path");
 
@@ -18,6 +19,7 @@ const WEBHOOK_SECRET = process.env.WEBHOOK_SECRET;
 const AUTH_DIR = process.env.AUTH_DIR || "./auth_info";
 
 let sock = null;
+let currentQR = null;
 
 // ─── WhatsApp connection ──────────────────────────────────────────────────────
 
@@ -36,6 +38,7 @@ async function connectToWhatsApp() {
 
   sock.ev.on("connection.update", ({ connection, lastDisconnect, qr }) => {
     if (qr) {
+      currentQR = qr;
       console.log("\n📱 Scan this QR code with WhatsApp:\n");
       qrcode.generate(qr, { small: true });
     }
@@ -118,6 +121,19 @@ app.post("/send", async (req, res) => {
 // GET /status — health check
 app.get("/status", (req, res) => {
   res.json({ connected: sock?.user != null, phone: sock?.user?.id || null });
+});
+
+// GET /qr — show QR code as image to scan
+app.get("/qr", async (req, res) => {
+  if (sock?.user) return res.send("<h2>✅ Already connected!</h2>");
+  if (!currentQR) return res.send("<h2>⏳ Waiting for QR code... refresh in a few seconds.</h2>");
+  const imgData = await QRCode.toDataURL(currentQR);
+  res.send(`<!DOCTYPE html><html><body style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;margin:0;background:#f0ece4;font-family:sans-serif;">
+    <h2 style="margin-bottom:16px;">Scan with WhatsApp</h2>
+    <img src="${imgData}" style="width:300px;height:300px;" />
+    <p style="color:#888;margin-top:12px;">Open WhatsApp → Linked Devices → Link a Device</p>
+    <script>setTimeout(()=>location.reload(),20000)</script>
+  </body></html>`);
 });
 
 app.listen(PORT, () => {
