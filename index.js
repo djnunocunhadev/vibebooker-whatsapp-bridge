@@ -1,11 +1,11 @@
 import makeWASocket, {
-  useMultiFileAuthState,
   DisconnectReason,
   fetchLatestBaileysVersion,
 } from "@whiskeysockets/baileys";
 import express from "express";
 import qrcode from "qrcode-terminal";
 import QRCode from "qrcode";
+import { usePostgresAuthState } from "./auth-state.js";
 
 const app = express();
 app.use(express.json());
@@ -30,7 +30,7 @@ console.log = (...args) => {
 // ─── WhatsApp connection ──────────────────────────────────────────────────────
 
 async function connectToWhatsApp() {
-  const { state, saveCreds } = await useMultiFileAuthState(AUTH_DIR);
+  const { state, saveCreds } = await usePostgresAuthState();
   const { version } = await fetchLatestBaileysVersion();
 
   sock = makeWASocket({
