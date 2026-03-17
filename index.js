@@ -20,6 +20,16 @@ const AUTH_DIR = process.env.AUTH_DIR || "./auth_info";
 
 let sock = null;
 let currentQR = null;
+const logs = [];
+
+// Intercept console.log into in-memory log buffer
+const _log = console.log.bind(console);
+console.log = (...args) => {
+  const line = args.map(String).join(" ");
+  logs.push({ t: new Date().toISOString(), msg: line });
+  if (logs.length > 200) logs.shift();
+  _log(...args);
+};
 
 // ─── WhatsApp connection ──────────────────────────────────────────────────────
 
@@ -121,6 +131,16 @@ app.post("/send", async (req, res) => {
 // GET /status — health check
 app.get("/status", (req, res) => {
   res.json({ connected: sock?.user != null, phone: sock?.user?.id || null });
+});
+
+// GET /logs — tail recent logs (protected)
+app.get("/logs", (req, res) => {
+  if (req.query.secret !== process.env.API_SECRET) return res.status(401).send("Unauthorized");
+  res.send(`<!DOCTYPE html><html><head><meta charset="utf-8"><meta http-equiv="refresh" content="5"></head>
+    <body style="background:#111;color:#0f0;font-family:monospace;padding:16px;white-space:pre-wrap;">
+      ${logs.map(l => `<span style="color:#888">${l.t}</span> ${l.msg}`).join("\n")}
+      <script>window.scrollTo(0,document.body.scrollHeight)</script>
+    </body></html>`);
 });
 
 // GET /qr — show QR code as image to scan
