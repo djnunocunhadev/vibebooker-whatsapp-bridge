@@ -1,20 +1,17 @@
-const {
-  default: makeWASocket,
+import makeWASocket, {
   useMultiFileAuthState,
   DisconnectReason,
   fetchLatestBaileysVersion,
-} = require("@whiskeysockets/baileys");
-const express = require("express");
-const qrcode = require("qrcode-terminal");
-const QRCode = require("qrcode");
-const fs = require("fs");
-const path = require("path");
+} from "@whiskeysockets/baileys";
+import express from "express";
+import qrcode from "qrcode-terminal";
+import QRCode from "qrcode";
 
 const app = express();
 app.use(express.json());
 
 const PORT = process.env.PORT || 3001;
-const WEBHOOK_URL = process.env.WEBHOOK_URL; // e.g. https://thisisusevents.pt/api/whatsapp/incoming
+const WEBHOOK_URL = process.env.WEBHOOK_URL;
 const WEBHOOK_SECRET = process.env.WEBHOOK_SECRET;
 const AUTH_DIR = process.env.AUTH_DIR || "./auth_info";
 
@@ -22,7 +19,6 @@ let sock = null;
 let currentQR = null;
 const logs = [];
 
-// Intercept console.log into in-memory log buffer
 const _log = console.log.bind(console);
 console.log = (...args) => {
   const line = args.map(String).join(" ");
@@ -58,7 +54,8 @@ async function connectToWhatsApp() {
       console.log("Connection closed. Reconnecting:", shouldReconnect);
       if (shouldReconnect) connectToWhatsApp();
     } else if (connection === "open") {
-      console.log("✅ WhatsApp connected");
+      currentQR = null;
+      console.log("✅ WhatsApp connected as", sock.user?.id);
     }
   });
 
@@ -66,10 +63,10 @@ async function connectToWhatsApp() {
     if (type !== "notify") return;
 
     for (const msg of messages) {
-      if (msg.key.fromMe) continue; // skip messages we sent
+      if (msg.key.fromMe) continue;
       if (!msg.message) continue;
 
-      const from = msg.key.remoteJid; // e.g. 351912345678@s.whatsapp.net
+      const from = msg.key.remoteJid;
       const phone = from.replace("@s.whatsapp.net", "").replace("@g.us", "");
       const content =
         msg.message.conversation ||
@@ -101,7 +98,6 @@ async function connectToWhatsApp() {
 
 // ─── HTTP API ─────────────────────────────────────────────────────────────────
 
-// Verify requests from Vercel
 function verifySecret(req, res) {
   const secret = req.headers["x-api-secret"];
   if (secret !== process.env.API_SECRET) {
@@ -111,7 +107,6 @@ function verifySecret(req, res) {
   return true;
 }
 
-// POST /send — send a WhatsApp message
 app.post("/send", async (req, res) => {
   if (!verifySecret(req, res)) return;
   const { phone, message } = req.body;
@@ -128,12 +123,10 @@ app.post("/send", async (req, res) => {
   }
 });
 
-// GET /status — health check
 app.get("/status", (req, res) => {
   res.json({ connected: sock?.user != null, phone: sock?.user?.id || null });
 });
 
-// GET /logs — tail recent logs (protected)
 app.get("/logs", (req, res) => {
   if (req.query.secret !== process.env.API_SECRET) return res.status(401).send("Unauthorized");
   res.send(`<!DOCTYPE html><html><head><meta charset="utf-8"><meta http-equiv="refresh" content="5"></head>
@@ -143,7 +136,6 @@ app.get("/logs", (req, res) => {
     </body></html>`);
 });
 
-// GET /qr — show QR code as image to scan
 app.get("/qr", async (req, res) => {
   if (sock?.user) return res.send("<h2>✅ Already connected!</h2>");
   if (!currentQR) return res.send("<h2>⏳ Waiting for QR code... refresh in a few seconds.</h2>");
