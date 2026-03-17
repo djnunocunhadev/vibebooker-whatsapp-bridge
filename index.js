@@ -123,6 +123,30 @@ app.post("/send", async (req, res) => {
   }
 });
 
+app.post("/send-doc", async (req, res) => {
+  if (!verifySecret(req, res)) return;
+  const { phone, url, fileName, caption } = req.body;
+  if (!phone || !url) return res.status(400).json({ error: "phone and url required" });
+  if (!sock) return res.status(503).json({ error: "WhatsApp not connected" });
+
+  try {
+    const response = await fetch(url);
+    if (!response.ok) return res.status(502).json({ error: `Failed to fetch document: ${response.status}` });
+    const buffer = Buffer.from(await response.arrayBuffer());
+    const jid = phone.includes("@") ? phone : `${phone}@s.whatsapp.net`;
+    await sock.sendMessage(jid, {
+      document: buffer,
+      mimetype: "application/pdf",
+      fileName: fileName || "documento.pdf",
+      caption: caption || undefined,
+    });
+    res.json({ ok: true });
+  } catch (e) {
+    console.error("Send-doc error:", e);
+    res.status(500).json({ error: e.message });
+  }
+});
+
 app.get("/status", (req, res) => {
   res.json({ connected: sock?.user != null, phone: sock?.user?.id || null });
 });
