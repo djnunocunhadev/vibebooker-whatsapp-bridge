@@ -127,14 +127,19 @@ app.post("/send", async (req, res) => {
 
 app.post("/send-doc", async (req, res) => {
   if (!verifySecret(req, res)) return;
-  const { phone, url, fileName, caption } = req.body;
-  if (!phone || !url) return res.status(400).json({ error: "phone and url required" });
+  const { phone, url, base64, fileName, caption } = req.body;
+  if (!phone || (!url && !base64)) return res.status(400).json({ error: "phone and url or base64 required" });
   if (!sock) return res.status(503).json({ error: "WhatsApp not connected" });
 
   try {
-    const response = await fetch(url);
-    if (!response.ok) return res.status(502).json({ error: `Failed to fetch document: ${response.status}` });
-    const buffer = Buffer.from(await response.arrayBuffer());
+    let buffer;
+    if (base64) {
+      buffer = Buffer.from(base64, "base64");
+    } else {
+      const response = await fetch(url);
+      if (!response.ok) return res.status(502).json({ error: `Failed to fetch document: ${response.status}` });
+      buffer = Buffer.from(await response.arrayBuffer());
+    }
     const normalised2 = phone.replace(/^\+/, "").replace(/\s/g, "");
     const jid = normalised2.includes("@") ? normalised2 : `${normalised2}@s.whatsapp.net`;
     await sock.sendMessage(jid, {
