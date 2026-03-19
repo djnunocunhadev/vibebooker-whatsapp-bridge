@@ -114,7 +114,8 @@ app.post("/send", async (req, res) => {
   if (!sock) return res.status(503).json({ error: "WhatsApp not connected" });
 
   try {
-    const jid = phone.includes("@") ? phone : `${phone}@s.whatsapp.net`;
+    const normalised = phone.replace(/^\+/, "").replace(/\s/g, "");
+    const jid = normalised.includes("@") ? normalised : `${normalised}@s.whatsapp.net`;
     await sock.sendMessage(jid, { text: message });
     res.json({ ok: true });
   } catch (e) {
@@ -133,7 +134,8 @@ app.post("/send-doc", async (req, res) => {
     const response = await fetch(url);
     if (!response.ok) return res.status(502).json({ error: `Failed to fetch document: ${response.status}` });
     const buffer = Buffer.from(await response.arrayBuffer());
-    const jid = phone.includes("@") ? phone : `${phone}@s.whatsapp.net`;
+    const normalised2 = phone.replace(/^\+/, "").replace(/\s/g, "");
+    const jid = normalised2.includes("@") ? normalised2 : `${normalised2}@s.whatsapp.net`;
     await sock.sendMessage(jid, {
       document: buffer,
       mimetype: "application/pdf",
