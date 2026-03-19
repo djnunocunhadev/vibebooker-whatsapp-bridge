@@ -8,7 +8,8 @@ import QRCode from "qrcode";
 import { usePostgresAuthState } from "./auth-state.js";
 
 const app = express();
-app.use(express.json());
+app.use(express.json({ strict: false }));
+app.use(express.urlencoded({ extended: true }));
 
 const PORT = process.env.PORT || 3001;
 const WEBHOOK_URL = process.env.WEBHOOK_URL;
