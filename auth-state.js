@@ -1,9 +1,6 @@
 import pkg from "pg";
 const { Client } = pkg;
 
-// Baileys auth state backed by Postgres
-// Stores each credential file as a row: key = filename, value = JSON
-
 async function getClient() {
   const client = new Client({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } });
   await client.connect();
@@ -14,35 +11,36 @@ async function ensureTable(client) {
   await client.query(`
     CREATE TABLE IF NOT EXISTS whatsapp_auth (
       key TEXT PRIMARY KEY,
-      value JSONB NOT NULL,
+      value TEXT NOT NULL,
       updated_at TIMESTAMPTZ DEFAULT NOW()
     )
   `);
 }
 
 export async function usePostgresAuthState() {
+  const { initAuthCreds, BufferJSON, proto } = await import("@whiskeysockets/baileys");
+
   const client = await getClient();
   await ensureTable(client);
 
   async function readData(key) {
     const res = await client.query("SELECT value FROM whatsapp_auth WHERE key = $1", [key]);
-    return res.rows[0]?.value ?? null;
+    if (!res.rows[0]) return null;
+    return JSON.parse(res.rows[0].value, BufferJSON.reviver);
   }
 
   async function writeData(key, value) {
+    const serialised = JSON.stringify(value, BufferJSON.replacer);
     await client.query(
       `INSERT INTO whatsapp_auth (key, value, updated_at) VALUES ($1, $2, NOW())
        ON CONFLICT (key) DO UPDATE SET value = $2, updated_at = NOW()`,
-      [key, JSON.stringify(value)]
+      [key, serialised]
     );
   }
 
   async function removeData(key) {
     await client.query("DELETE FROM whatsapp_auth WHERE key = $1", [key]);
   }
-
-  // Load all existing creds
-  const { initAuthCreds, BufferJSON, proto } = await import("@whiskeysockets/baileys");
 
   const creds = (await readData("creds")) || initAuthCreds();
 
