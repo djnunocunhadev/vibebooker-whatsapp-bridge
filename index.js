@@ -66,16 +66,30 @@ async function connectToWhatsApp() {
     for (const msg of messages) {
       if (!msg.message) continue;
 
-      const from = msg.key.remoteJid;
-      const phone = from.replace("@s.whatsapp.net", "").replace("@g.us", "");
+      const from = msg.key.remoteJid || "";
+      let phone = from.replace("@s.whatsapp.net", "").replace("@g.us", "").replace("@lid", "");
+      
+      // If it's a LID message, try to find the real participant
+      if (from.includes("@lid")) {
+        console.log(`LID Detected. Full msg structure:`, JSON.stringify(msg, null, 2));
+      }
+
+      // If it's a direct message but we only have a participant key (sometimes sent alongside LID)
+      if (msg.key.participant) {
+        phone = msg.key.participant.replace("@s.whatsapp.net", "").replace("@g.us", "").replace("@lid", "");
+      }
+
       const content =
-        msg.message.conversation ||
-        msg.message.extendedTextMessage?.text ||
-        msg.message.imageMessage?.caption ||
+        msg.message?.conversation ||
+        msg.message?.extendedTextMessage?.text ||
+        msg.message?.imageMessage?.caption ||
         "[media]";
 
-      // Skip own messages UNLESS they contain an INQ- code (for self-testing)
-      if (msg.key.fromMe && !/INQ-\d{4}-\d+/.test(content)) continue;
+      if (msg.key.fromMe) {
+        if (!content.toLowerCase().includes("confirmar orçamento")) {
+          continue; // Skip own messages unless it's a test trigger
+        }
+      }
 
       const messageId = msg.key.id;
       const pushName = msg.pushName || null;
