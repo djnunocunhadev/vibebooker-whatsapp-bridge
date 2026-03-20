@@ -66,17 +66,12 @@ async function connectToWhatsApp() {
     for (const msg of messages) {
       if (!msg.message) continue;
 
-      const from = msg.key.remoteJid || "";
-      let phone = from.replace("@s.whatsapp.net", "").replace("@g.us", "").replace("@lid", "");
-      
-      // If it's a LID message, try to find the real participant
-      if (from.includes("@lid")) {
-        console.log(`LID Detected. Full msg structure:`, JSON.stringify(msg, null, 2));
-      }
+      const fromRaw = msg.key.participant || msg.key.remoteJidAlt || msg.key.remoteJid || "";
+      let phone = fromRaw.replace("@s.whatsapp.net", "").replace("@g.us", "").replace("@lid", "");
 
-      // If it's a direct message but we only have a participant key (sometimes sent alongside LID)
-      if (msg.key.participant) {
-        phone = msg.key.participant.replace("@s.whatsapp.net", "").replace("@g.us", "").replace("@lid", "");
+      // Optional debug log
+      if (msg.key.remoteJid?.includes("@lid")) {
+        console.log(`LID Detected. Extracted real phone: ${phone}`);
       }
 
       const content =
