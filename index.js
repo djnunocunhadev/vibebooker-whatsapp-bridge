@@ -81,7 +81,9 @@ async function connectToWhatsApp() {
         "[media]";
 
       if (msg.key.fromMe) {
-        if (!content.toLowerCase().includes("confirmar orçamento")) {
+        const contentLower = content.toLowerCase();
+        const normalizedContent = contentLower.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+        if (!(normalizedContent.includes("confirmar") && normalizedContent.includes("orcamento"))) {
           continue; // Skip own messages unless it's a test trigger
         }
       }
