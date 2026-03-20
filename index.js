@@ -64,7 +64,6 @@ async function connectToWhatsApp() {
     if (type !== "notify") return;
 
     for (const msg of messages) {
-      if (msg.key.fromMe) continue;
       if (!msg.message) continue;
 
       const from = msg.key.remoteJid;
@@ -74,6 +73,10 @@ async function connectToWhatsApp() {
         msg.message.extendedTextMessage?.text ||
         msg.message.imageMessage?.caption ||
         "[media]";
+
+      // Skip own messages UNLESS they contain an INQ- code (for self-testing)
+      if (msg.key.fromMe && !/INQ-\d{4}-\d+/.test(content)) continue;
+
       const messageId = msg.key.id;
       const pushName = msg.pushName || null;
 
