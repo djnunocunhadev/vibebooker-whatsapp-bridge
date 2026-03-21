@@ -71,21 +71,12 @@ async function connectToWhatsApp() {
 
       let phone;
       if (remoteJid.includes("@lid")) {
-        // remoteJid is a lid — remoteJidAlt should be the real phone (@s.whatsapp.net)
         if (remoteJidAlt && !remoteJidAlt.includes("@lid")) {
           phone = remoteJidAlt.replace("@s.whatsapp.net", "").replace("@g.us", "");
           console.log(`LID resolved via remoteJidAlt: ${remoteJid} → ${phone}`);
         } else {
-          // Fallback: contacts map
-          const contacts = sock.contacts || {};
-          const match = Object.values(contacts).find((c) => c.lid === remoteJid || c.id === remoteJid);
-          if (match?.id) {
-            phone = match.id.replace("@s.whatsapp.net", "");
-            console.log(`LID resolved via contacts: ${remoteJid} → ${phone}`);
-          } else {
-            phone = remoteJid.replace("@s.whatsapp.net", "").replace("@g.us", "").replace("@lid", "");
-            console.log(`LID unresolved, using raw: ${phone}`);
-          }
+          phone = remoteJid.replace("@s.whatsapp.net", "").replace("@g.us", "").replace("@lid", "");
+          console.log(`LID unresolved, using raw: ${phone}`);
         }
       } else {
         phone = remoteJid.replace("@s.whatsapp.net", "").replace("@g.us", "");
