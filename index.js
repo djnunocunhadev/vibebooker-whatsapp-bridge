@@ -66,19 +66,29 @@ async function connectToWhatsApp() {
     for (const msg of messages) {
       if (!msg.message) continue;
 
-      const fromRaw = msg.key.participant || msg.key.remoteJid || "";
-      let phone = fromRaw.replace("@s.whatsapp.net", "").replace("@g.us", "").replace("@lid", "");
+      const remoteJid = msg.key.participant || msg.key.remoteJid || "";
+      const remoteJidAlt = msg.key.remoteJidAlt || "";
 
-      // If this is a lid JID, resolve to real phone via contacts map
-      if (fromRaw.includes("@lid")) {
-        const contacts = sock.contacts || {};
-        const match = Object.values(contacts).find((c) => c.lid === fromRaw || c.id === fromRaw);
-        if (match?.id) {
-          phone = match.id.replace("@s.whatsapp.net", "");
-          console.log(`LID resolved: ${fromRaw} → ${phone}`);
+      let phone;
+      if (remoteJid.includes("@lid")) {
+        // remoteJid is a lid — remoteJidAlt should be the real phone (@s.whatsapp.net)
+        if (remoteJidAlt && !remoteJidAlt.includes("@lid")) {
+          phone = remoteJidAlt.replace("@s.whatsapp.net", "").replace("@g.us", "");
+          console.log(`LID resolved via remoteJidAlt: ${remoteJid} → ${phone}`);
         } else {
-          console.log(`LID not resolved in contacts, raw phone: ${phone}`);
+          // Fallback: contacts map
+          const contacts = sock.contacts || {};
+          const match = Object.values(contacts).find((c) => c.lid === remoteJid || c.id === remoteJid);
+          if (match?.id) {
+            phone = match.id.replace("@s.whatsapp.net", "");
+            console.log(`LID resolved via contacts: ${remoteJid} → ${phone}`);
+          } else {
+            phone = remoteJid.replace("@s.whatsapp.net", "").replace("@g.us", "").replace("@lid", "");
+            console.log(`LID unresolved, using raw: ${phone}`);
+          }
         }
+      } else {
+        phone = remoteJid.replace("@s.whatsapp.net", "").replace("@g.us", "");
       }
 
       const content =
