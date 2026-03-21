@@ -100,8 +100,9 @@ async function connectToWhatsApp() {
       console.log(`📨 Message from ${phone}: ${content}`);
 
       if (WEBHOOK_URL) {
+        console.log(`📤 Forwarding to webhook: ${WEBHOOK_URL}`);
         try {
-          await fetch(WEBHOOK_URL, {
+          const whRes = await fetch(WEBHOOK_URL, {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
@@ -109,9 +110,13 @@ async function connectToWhatsApp() {
             },
             body: JSON.stringify({ phone, content, messageId, pushName }),
           });
+          const whBody = await whRes.text();
+          console.log(`📥 Webhook response: ${whRes.status} ${whBody.slice(0, 200)}`);
         } catch (e) {
           console.error("Webhook error:", e.message);
         }
+      } else {
+        console.warn("⚠️ WEBHOOK_URL not set, skipping forward");
       }
     }
   });
