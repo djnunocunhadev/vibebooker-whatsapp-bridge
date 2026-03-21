@@ -66,12 +66,19 @@ async function connectToWhatsApp() {
     for (const msg of messages) {
       if (!msg.message) continue;
 
-      const fromRaw = msg.key.participant || msg.key.remoteJidAlt || msg.key.remoteJid || "";
+      const fromRaw = msg.key.participant || msg.key.remoteJid || "";
       let phone = fromRaw.replace("@s.whatsapp.net", "").replace("@g.us", "").replace("@lid", "");
 
-      // Optional debug log
-      if (msg.key.remoteJid?.includes("@lid")) {
-        console.log(`LID Detected. Extracted real phone: ${phone}`);
+      // If this is a lid JID, resolve to real phone via contacts map
+      if (fromRaw.includes("@lid")) {
+        const contacts = sock.contacts || {};
+        const match = Object.values(contacts).find((c) => c.lid === fromRaw || c.id === fromRaw);
+        if (match?.id) {
+          phone = match.id.replace("@s.whatsapp.net", "");
+          console.log(`LID resolved: ${fromRaw} → ${phone}`);
+        } else {
+          console.log(`LID not resolved in contacts, raw phone: ${phone}`);
+        }
       }
 
       const content =

@@ -1,14 +1,20 @@
 import pkg from "pg";
-const { Client } = pkg;
+const { Pool } = pkg;
 
-async function getClient() {
-  const client = new Client({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } });
-  await client.connect();
-  return client;
+let pool = null;
+
+function getPool() {
+  if (!pool) {
+    pool = new Pool({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } });
+    pool.on("error", (err) => {
+      console.error("PG pool error (handled):", err.message);
+    });
+  }
+  return pool;
 }
 
-async function ensureTable(client) {
-  await client.query(`
+async function ensureTable() {
+  await getPool().query(`
     CREATE TABLE IF NOT EXISTS whatsapp_auth (
       key TEXT PRIMARY KEY,
       value TEXT NOT NULL,
@@ -20,18 +26,17 @@ async function ensureTable(client) {
 export async function usePostgresAuthState() {
   const { initAuthCreds, BufferJSON, proto } = await import("@whiskeysockets/baileys");
 
-  const client = await getClient();
-  await ensureTable(client);
+  await ensureTable();
 
   async function readData(key) {
-    const res = await client.query("SELECT value FROM whatsapp_auth WHERE key = $1", [key]);
+    const res = await getPool().query("SELECT value FROM whatsapp_auth WHERE key = $1", [key]);
     if (!res.rows[0]) return null;
     return JSON.parse(res.rows[0].value, BufferJSON.reviver);
   }
 
   async function writeData(key, value) {
     const serialised = JSON.stringify(value, BufferJSON.replacer);
-    await client.query(
+    await getPool().query(
       `INSERT INTO whatsapp_auth (key, value, updated_at) VALUES ($1, $2, NOW())
        ON CONFLICT (key) DO UPDATE SET value = $2, updated_at = NOW()`,
       [key, serialised]
@@ -39,7 +44,7 @@ export async function usePostgresAuthState() {
   }
 
   async function removeData(key) {
-    await client.query("DELETE FROM whatsapp_auth WHERE key = $1", [key]);
+    await getPool().query("DELETE FROM whatsapp_auth WHERE key = $1", [key]);
   }
 
   const creds = (await readData("creds")) || initAuthCreds();
