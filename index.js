@@ -235,7 +235,7 @@ function escapeHtml(str) {
 }
 
 app.get("/status", (req, res) => {
-  if (req.query.secret !== process.env.API_SECRET) return res.status(401).json({ error: "Unauthorized" });
+  if (!verifySecret(req, res)) return;
   res.json({ connected: sock?.user != null, phone: sock?.user?.id || null });
 });
 
