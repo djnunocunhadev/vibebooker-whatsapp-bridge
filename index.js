@@ -5,11 +5,37 @@ import makeWASocket, {
 import express from "express";
 import qrcode from "qrcode-terminal";
 import QRCode from "qrcode";
+import helmet from "helmet";
+import rateLimit from "express-rate-limit";
+import { createHash, timingSafeEqual } from "crypto";
 import { usePostgresAuthState, getPool } from "./auth-state.js";
 
 const app = express();
-app.use(express.json({ strict: false }));
-app.use(express.urlencoded({ extended: true }));
+
+// Security headers
+app.use(helmet({ contentSecurityPolicy: false })); // CSP disabled — QR page uses inline styles
+
+// Body parsing with size limits
+app.use(express.json({ strict: false, limit: "10mb" })); // 10mb for base64 PDF in /send-doc
+app.use(express.urlencoded({ extended: true, limit: "1mb" }));
+
+// Rate limiting — global: 120 req / 1 min per IP
+app.use(rateLimit({
+  windowMs: 60 * 1000,
+  max: 120,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many requests, slow down." },
+}));
+
+// Stricter limiter for message-sending endpoints: 20 req / 1 min per IP
+const sendLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Message rate limit exceeded." },
+});
 
 const PORT = process.env.PORT || 3001;
 const WEBHOOK_URL = process.env.WEBHOOK_URL;
@@ -128,19 +154,33 @@ async function connectToWhatsApp() {
 
 // ─── HTTP API ─────────────────────────────────────────────────────────────────
 
+// Timing-safe secret verification — prevents timing side-channel attacks
 function verifySecret(req, res) {
-  const secret = req.headers["x-api-secret"];
-  if (secret !== process.env.API_SECRET) {
+  const incoming = req.headers["x-api-secret"];
+  const expected = process.env.API_SECRET;
+  if (!incoming || !expected) {
+    res.status(401).json({ error: "Unauthorized" });
+    return false;
+  }
+  // Hash both to equal length before comparing
+  const hi = createHash("sha256").update(incoming).digest();
+  const he = createHash("sha256").update(expected).digest();
+  if (!timingSafeEqual(hi, he)) {
     res.status(401).json({ error: "Unauthorized" });
     return false;
   }
   return true;
 }
 
-app.post("/send", async (req, res) => {
+const MAX_MSG_LEN = 4096;
+const PHONE_RE = /^\+?[\d\s\-(). ]{7,20}$/;
+
+app.post("/send", sendLimiter, async (req, res) => {
   if (!verifySecret(req, res)) return;
   const { phone, message } = req.body;
   if (!phone || !message) return res.status(400).json({ error: "phone and message required" });
+  if (!PHONE_RE.test(phone)) return res.status(400).json({ error: "Invalid phone number format" });
+  if (message.length > MAX_MSG_LEN) return res.status(400).json({ error: "Message too long" });
   if (!sock) return res.status(503).json({ error: "WhatsApp not connected" });
 
   try {
@@ -154,10 +194,11 @@ app.post("/send", async (req, res) => {
   }
 });
 
-app.post("/send-doc", async (req, res) => {
+app.post("/send-doc", sendLimiter, async (req, res) => {
   if (!verifySecret(req, res)) return;
   const { phone, url, base64, fileName, caption } = req.body;
   if (!phone || (!url && !base64)) return res.status(400).json({ error: "phone and url or base64 required" });
+  if (!PHONE_RE.test(phone)) return res.status(400).json({ error: "Invalid phone number format" });
   if (!sock) return res.status(503).json({ error: "WhatsApp not connected" });
 
   try {
