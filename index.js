@@ -207,12 +207,12 @@ app.get("/qr", async (req, res) => {
 
 app.post("/logout", async (req, res) => {
   if (!verifySecret(req, res)) return;
-  if (!sock) return res.status(503).json({ error: "WhatsApp not active" });
+  if (!sock) return res.json({ ok: true, message: "Already disconnected." });
   try {
-    await sock.logout();
+    await sock.logout().catch(() => {});
     res.json({ ok: true });
   } catch (e) {
-    res.status(500).json({ error: e.message });
+    res.json({ ok: true, message: "Disconnected (was already closed)." });
   }
 });
 
