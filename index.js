@@ -18,6 +18,7 @@ const AUTH_DIR = process.env.AUTH_DIR || "./auth_info";
 
 let sock = null;
 let currentQR = null;
+let isConnecting = false;
 const logs = [];
 
 const _log = console.log.bind(console);
@@ -31,6 +32,8 @@ console.log = (...args) => {
 // ─── WhatsApp connection ──────────────────────────────────────────────────────
 
 async function connectToWhatsApp() {
+  if (isConnecting) { console.log("⏳ Already connecting, skipping duplicate call."); return; }
+  isConnecting = true;
   const { state, saveCreds } = await usePostgresAuthState();
   const { version } = await fetchLatestBaileysVersion();
 
@@ -50,11 +53,13 @@ async function connectToWhatsApp() {
       qrcode.generate(qr, { small: true });
     }
     if (connection === "close") {
+      isConnecting = false;
       const shouldReconnect =
         lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut;
       console.log("Connection closed. Reconnecting:", shouldReconnect);
       if (shouldReconnect) connectToWhatsApp();
     } else if (connection === "open") {
+      isConnecting = false;
       currentQR = null;
       console.log("✅ WhatsApp connected as", sock.user?.id);
     }
@@ -224,6 +229,7 @@ app.post("/clear", async (req, res) => {
     res.json({ ok: true, message: "Session cleared. Bridge will now require a new QR scan." });
     setTimeout(() => {
       console.log("♻️ Restarting connection after clear...");
+      isConnecting = false;
       connectToWhatsApp();
     }, 2000);
   } catch (e) {
