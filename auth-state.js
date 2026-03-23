@@ -3,7 +3,7 @@ const { Pool } = pkg;
 
 let pool = null;
 
-function getPool() {
+export function getPool() {
   if (!pool) {
     pool = new Pool({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } });
     pool.on("error", (err) => {

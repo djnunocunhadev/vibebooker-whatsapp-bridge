@@ -5,7 +5,7 @@ import makeWASocket, {
 import express from "express";
 import qrcode from "qrcode-terminal";
 import QRCode from "qrcode";
-import { usePostgresAuthState } from "./auth-state.js";
+import { usePostgresAuthState, getPool } from "./auth-state.js";
 
 const app = express();
 app.use(express.json({ strict: false }));
@@ -203,6 +203,32 @@ app.get("/qr", async (req, res) => {
     <p style="color:#888;margin-top:12px;">Open WhatsApp → Linked Devices → Link a Device</p>
     <script>setTimeout(()=>location.reload(),20000)</script>
   </body></html>`);
+});
+
+app.post("/logout", async (req, res) => {
+  if (!verifySecret(req, res)) return;
+  if (!sock) return res.status(503).json({ error: "WhatsApp not active" });
+  try {
+    await sock.logout();
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.post("/clear", async (req, res) => {
+  if (!verifySecret(req, res)) return;
+  try {
+    if (sock) await sock.logout().catch(() => {});
+    await getPool().query("TRUNCATE TABLE whatsapp_auth");
+    res.json({ ok: true, message: "Session cleared. Bridge will now require a new QR scan." });
+    setTimeout(() => {
+      console.log("♻️ Restarting connection after clear...");
+      connectToWhatsApp();
+    }, 2000);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
 });
 
 app.listen(PORT, () => {
