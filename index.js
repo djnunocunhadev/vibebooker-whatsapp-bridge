@@ -14,7 +14,6 @@ app.use(express.urlencoded({ extended: true }));
 const PORT = process.env.PORT || 3001;
 const WEBHOOK_URL = process.env.WEBHOOK_URL;
 const WEBHOOK_SECRET = process.env.WEBHOOK_SECRET;
-const AUTH_DIR = process.env.AUTH_DIR || "./auth_info";
 
 let sock = null;
 let currentQR = null;
@@ -185,7 +184,17 @@ app.post("/send-doc", async (req, res) => {
   }
 });
 
+function escapeHtml(str) {
+  return String(str)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
 app.get("/status", (req, res) => {
+  if (req.query.secret !== process.env.API_SECRET) return res.status(401).json({ error: "Unauthorized" });
   res.json({ connected: sock?.user != null, phone: sock?.user?.id || null });
 });
 
@@ -193,12 +202,13 @@ app.get("/logs", (req, res) => {
   if (req.query.secret !== process.env.API_SECRET) return res.status(401).send("Unauthorized");
   res.send(`<!DOCTYPE html><html><head><meta charset="utf-8"><meta http-equiv="refresh" content="5"></head>
     <body style="background:#111;color:#0f0;font-family:monospace;padding:16px;white-space:pre-wrap;">
-      ${logs.map(l => `<span style="color:#888">${l.t}</span> ${l.msg}`).join("\n")}
+      ${logs.map(l => `<span style="color:#888">${escapeHtml(l.t)}</span> ${escapeHtml(l.msg)}`).join("\n")}
       <script>window.scrollTo(0,document.body.scrollHeight)</script>
     </body></html>`);
 });
 
 app.get("/qr", async (req, res) => {
+  if (req.query.secret !== process.env.API_SECRET) return res.status(401).send("Unauthorized");
   if (sock?.user) return res.send("<h2>✅ Already connected!</h2>");
   if (!currentQR) return res.send("<h2>⏳ Waiting for QR code... refresh in a few seconds.</h2>");
   const imgData = await QRCode.toDataURL(currentQR);

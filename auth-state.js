@@ -5,7 +5,7 @@ let pool = null;
 
 export function getPool() {
   if (!pool) {
-    pool = new Pool({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } });
+    pool = new Pool({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: true } });
     pool.on("error", (err) => {
       console.error("PG pool error (handled):", err.message);
     });
